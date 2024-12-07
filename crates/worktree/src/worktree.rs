@@ -4510,6 +4510,18 @@ impl BackgroundScanner {
                         .snapshot
                         .ignore_stack_for_abs_path(&abs_path, metadata.is_dir);
                     let is_external = !canonical_path.starts_with(&root_canonical_path);
+                    // If the worktree consists of a single file, the root (and only)
+                    // entry will have an empty path, but we want to apply the privacy
+                    // check to its filename.
+                    let path_for_privacy_check = if !metadata.is_dir && &**path == Path::new("") {
+                        canonical_path
+                            .file_name()
+                            .expect("canonical path ended in `..`")
+                            .as_ref()
+                    } else {
+                        &**path
+                    };
+                    let is_private = self.is_path_private(path_for_privacy_check);
                     let mut fs_entry = Entry::new(
                         path.clone(),
                         &metadata,
@@ -4525,7 +4537,7 @@ impl BackgroundScanner {
                     let is_dir = fs_entry.is_dir();
                     fs_entry.is_ignored = ignore_stack.is_abs_path_ignored(&abs_path, is_dir);
                     fs_entry.is_external = is_external;
-                    fs_entry.is_private = self.is_path_private(path);
+                    fs_entry.is_private = is_private;
                     fs_entry.is_always_included = self.settings.is_path_always_included(path);
 
                     if let (Some(scan_queue_tx), true) = (&scan_queue_tx, is_dir) {
